@@ -1,11 +1,10 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using pk3DS.Core;
 using pk3DS.Core.CTR;
 using pk3DS.Core.Structures;
 
-namespace pk3DS
+namespace pk3DS.Core
 {
     public class Area7
     {
@@ -54,7 +53,7 @@ namespace pk3DS
             return Mini.PackMini(tabs, PackIdentifier);
         }
 
-        public static Area7[] GetArray(lzGARCFile ed, ZoneData7[] zd)
+        public static Area7[] GetArray(LazyGARCFile ed, ZoneData7[] zd)
         {
             int fileCount = ed.FileCount;
             var numAreas = fileCount / 11;
@@ -67,7 +66,7 @@ namespace pk3DS
                     Zones = zd.Where(z => z.AreaIndex == i).ToArray()
                 };
                 var md = ed[areas[i].FileNumber];
-                if (md.Length <= 0)
+                if (md.Length == 0)
                 {
                     areas[i].HasTables = false;
                     continue;
@@ -97,7 +96,7 @@ namespace pk3DS
         /// <param name="wd">WorldData GARC</param>
         /// <param name="locationList">Location strings</param>
         /// <returns>Annotated Area Array</returns>
-        public static Area7[] GetArray(lzGARCFile ed, lzGARCFile zd, lzGARCFile wd, string[] locationList)
+        public static Area7[] GetArray(LazyGARCFile ed, LazyGARCFile zd, LazyGARCFile wd, string[] locationList)
         {
             var Worlds = wd.Files.Select(f => Mini.UnpackMini(f, "WD")[0]).ToArray();
 

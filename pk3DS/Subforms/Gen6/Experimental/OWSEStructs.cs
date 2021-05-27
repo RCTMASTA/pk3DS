@@ -11,7 +11,8 @@ namespace pk3DS
     #region Game Related Classes
     public class MapMatrix
     {
-        public uint u0;
+        public ushort u0;
+        public ushort u1;
         public ushort uL;
         public ushort Width, Height;
         private readonly int Area;
@@ -25,44 +26,38 @@ namespace pk3DS
         {
             using (BinaryReader br = new BinaryReader(new MemoryStream(data[0])))
             {
-                u0 = br.ReadUInt32();
+                u0 = br.ReadUInt16();
+                u1 = br.ReadUInt16();
                 Width = br.ReadUInt16();
                 Height = br.ReadUInt16();
+
                 Area = Width*Height;
                 Entries = new Entry[Area];
                 EntryList = new ushort[Area];
                 for (int i = 0; i < Area; i++)
-                {
                     EntryList[i] = br.ReadUInt16();
-                }
 
                 if (br.BaseStream.Position != br.BaseStream.Length)
-                {
                     uL = br.ReadUInt16();
-                }
             }
             if (data.Length > 1)
-            {
                 ParseUnk(UnkData = data[1]);
-            }
         }
 
         public byte[] Write()
         {
-            using (MemoryStream ms = new MemoryStream())
-            using (BinaryWriter bw = new BinaryWriter(ms))
+            using MemoryStream ms = new MemoryStream();
+            using BinaryWriter bw = new BinaryWriter(ms);
+            bw.Write(u0);
+            bw.Write(Width);
+            bw.Write(Height);
+            foreach (ushort Entry in EntryList)
             {
-                bw.Write(u0);
-                bw.Write(Width);
-                bw.Write(Height);
-                foreach (ushort Entry in EntryList)
-                {
-                    bw.Write(Entry);
-                }
-
-                bw.Write(uL);
-                return ms.ToArray();
+                bw.Write(Entry);
             }
+
+            bw.Write(uL);
+            return ms.ToArray();
         }
 
         public Bitmap Preview(int Scale, int ColorShift)
@@ -85,13 +80,9 @@ namespace pk3DS
             // Combine all images into one.
             Bitmap img = new Bitmap(EntryImages[0].Width * Width, EntryImages[0].Height * Height);
 
-            using (Graphics g = Graphics.FromImage(img))
-            {
-                for (int i = 0; i < Area; i++)
-            {
-                g.DrawImage(EntryImages[i], new Point(i * EntryImages[0].Width % img.Width, EntryImages[0].Height * (i / Width)));
-            }
-            }
+            using Graphics g = Graphics.FromImage(img);
+            for (int i = 0; i < Area; i++)
+                g.DrawImage(EntryImages[i],                         new Point(i * EntryImages[0].Width % img.Width, EntryImages[0].Height * (i / Width)));
 
             return img;
         }
@@ -106,33 +97,29 @@ namespace pk3DS
 
             public Entry(byte[] data)
             {
-                using (BinaryReader br = new BinaryReader(new MemoryStream(data)))
+                using BinaryReader br = new BinaryReader(new MemoryStream(data));
+                Width = br.ReadUInt16();
+                Height = br.ReadUInt16();
+                Area = Width*Height;
+                Tiles = new uint[Area];
+                for (int i = 0; i < Area; i++)
                 {
-                    Width = br.ReadUInt16();
-                    Height = br.ReadUInt16();
-                    Area = Width*Height;
-                    Tiles = new uint[Area];
-                    for (int i = 0; i < Area; i++)
-                    {
-                        Tiles[i] = br.ReadUInt32();
-                    }
+                    Tiles[i] = br.ReadUInt32();
                 }
             }
 
             public byte[] Write()
             {
-                using (MemoryStream ms = new MemoryStream())
-                using (BinaryWriter bw = new BinaryWriter(ms))
+                using MemoryStream ms = new MemoryStream();
+                using BinaryWriter bw = new BinaryWriter(ms);
+                bw.Write(Width);
+                bw.Write(Height);
+                foreach (uint Tile in Tiles)
                 {
-                    bw.Write(Width);
-                    bw.Write(Height);
-                    foreach (uint Tile in Tiles)
-                    {
-                        bw.Write(Tile);
-                    }
-
-                    return ms.ToArray();
+                    bw.Write(Tile);
                 }
+
+                return ms.ToArray();
             }
 
             public Bitmap Preview(int s, int ColorShift)
@@ -181,50 +168,48 @@ namespace pk3DS
 
             public Collision(byte[] data)
             {
-                using (BinaryReader br = new BinaryReader(new MemoryStream(data)))
+                using BinaryReader br = new BinaryReader(new MemoryStream(data));
+                Magic = new string(br.ReadChars(4)); // Magic
+                if (Magic != "coll")
                 {
-                    Magic = new string(br.ReadChars(4)); // Magic
-                    if (Magic != "coll")
-                    {
-                        return; // all other properties are null
-                    }
-
-                    termOffset = br.ReadInt32();
-                    U5D8 = br.ReadInt32();
-                    UnknownBytes = br.ReadBytes(0x14);
-
-                    // Read 40 collision rectangles
-                    Map40 = new CollisionObject[40];
-                    for (int i = 0; i < Map40.Length; i++)
-                    {
-                        Map40[i] = new CollisionObject(br.ReadBytes(0x10));
-                    }
-
-                    // Read 32 Int32s
-                    MapInts = new int[0x20];
-                    for (int i = 0; i < MapInts.Length; i++)
-                    {
-                        MapInts[i] = br.ReadInt32();
-                    }
-
-                    // Read misc collision rectangles
-                    int ct = termOffset - (int)br.BaseStream.Position + 0x10;
-                    MapMisc = new CollisionObject[ct/0x10];
-                    for (int i = 0; i < MapMisc.Length; i++)
-                    {
-                        MapMisc[i] = new CollisionObject(br.ReadBytes(0x10));
-                    }
-
-                    // Read Term
-                    termMagic = new string(br.ReadChars(4));
-                    if (termMagic != "term")
-                    {
-                        return; // all other properties are null
-                    }
-
-                    // Read the rest of the data....
-                    termData = br.ReadBytes((int)(br.BaseStream.Length - br.BaseStream.Position));
+                    return; // all other properties are null
                 }
+
+                termOffset = br.ReadInt32();
+                U5D8 = br.ReadInt32();
+                UnknownBytes = br.ReadBytes(0x14);
+
+                // Read 40 collision rectangles
+                Map40 = new CollisionObject[40];
+                for (int i = 0; i < Map40.Length; i++)
+                {
+                    Map40[i] = new CollisionObject(br.ReadBytes(0x10));
+                }
+
+                // Read 32 Int32s
+                MapInts = new int[0x20];
+                for (int i = 0; i < MapInts.Length; i++)
+                {
+                    MapInts[i] = br.ReadInt32();
+                }
+
+                // Read misc collision rectangles
+                int ct = termOffset - (int)br.BaseStream.Position + 0x10;
+                MapMisc = new CollisionObject[ct/0x10];
+                for (int i = 0; i < MapMisc.Length; i++)
+                {
+                    MapMisc[i] = new CollisionObject(br.ReadBytes(0x10));
+                }
+
+                // Read Term
+                termMagic = new string(br.ReadChars(4));
+                if (termMagic != "term")
+                {
+                    return; // all other properties are null
+                }
+
+                // Read the rest of the data....
+                termData = br.ReadBytes((int)(br.BaseStream.Length - br.BaseStream.Position));
             }
 
             public class CollisionObject
@@ -263,19 +248,20 @@ namespace pk3DS
         private void ParseUnk(byte[] data)
         {
             List<Unknown> unk = new List<Unknown>();
-            using (var br = new BinaryReader(new MemoryStream(data)))
+            using var ms = new MemoryStream(data);
+            using var br = new BinaryReader(ms);
+            do
             {
-                do
-            {
-                unk.Add(new Unknown {
+                var obj = new Unknown
+                {
                     Direction = br.ReadUInt32(),
                     _1 = br.ReadSingle(),
                     _2 = br.ReadSingle(),
                     _3 = br.ReadSingle(),
                     _4 = br.ReadSingle(),
-                });
+                };
+                unk.Add(obj);
             } while (unk.Last().Direction != 0);
-            }
 
             unk.RemoveAt(unk.Count-1);
             Unknowns = unk.ToArray();
@@ -343,35 +329,33 @@ namespace pk3DS
             set => BitConverter.GetBytes((ushort)(((value & 0x7F) << 7) | (BitConverter.ToUInt16(Data, 0x1E) & ~0x3F80))).CopyTo(Data, 0x1E);
         }
 
-        private int _20 { get => BitConverter.ToUInt16(Data, 0x20); set => BitConverter.GetBytes((ushort)value).CopyTo(Data, 0x20); }
-        public int MapChange { get => _20 & 0x1F; set => _20 = (_20 & ~0x1F) | value; }
+        private uint Unk_20 { get => BitConverter.ToUInt32(Data, 0x20); set => BitConverter.GetBytes(value).CopyTo(Data, 0x20); }
+        public uint MapChange { get => Unk_20 & 0x1Fu; set => Unk_20 = (Unk_20 & ~0x1Fu) | value; }
         // ??? 5
-        public bool IsBicycleEnable { get => ((_20 >> 10) & 1) == 1; set => _20 = (_20 & ~(1 << 10)) | (value ? 1 << 10 : 0); }
-        public bool IsRunEnable { get => ((_20 >> 11) & 1) == 1; set => _20 = (_20 & ~(1 << 11)) | (value ? 1 << 11 : 0); }
-        public bool IsEscapeRopeEnable { get => ((_20 >> 12) & 1) == 1; set => _20 = (_20 & ~(1 << 12)) | (value ? 1 << 12 : 0); }
-        public bool IsFlyEnable { get => ((_20 >> 13) & 1) == 1; set => _20 = (_20 & ~(1 << 13)) | (value ? 1 << 13 : 0); }
-        public bool IsBGM { get => ((_20 >> 14) & 1) == 1; set => _20 = (_20 & ~(1 << 14)) | (value ? 1 << 14 : 0); }
-        public bool IsUnk { get => ((_20 >> 15) & 1) == 1; set => _20 = (_20 & ~(1 << 15)) | (value ? 1 << 15 : 0); }
+        public bool IsBicycleEnable { get => ((Unk_20 >> 10) & 1) == 1; set => Unk_20 = (Unk_20 & ~(1u << 10)) | (value ? 1u << 10 : 0); }
+        public bool IsRunEnable { get => ((Unk_20 >> 11) & 1) == 1; set => Unk_20 = (Unk_20 & ~(1u << 11)) | (value ? 1u << 11 : 0); }
+        public bool IsEscapeRopeEnable { get => ((Unk_20 >> 12) & 1) == 1; set => Unk_20 = (Unk_20 & ~(1u << 12)) | (value ? 1u << 12 : 0); }
+        public bool IsFlyEnable { get => ((Unk_20 >> 13) & 1) == 1; set => Unk_20 = (Unk_20 & ~(1u << 13)) | (value ? 1u << 13 : 0); }
+        public bool IsBGM { get => ((Unk_20 >> 14) & 1) == 1; set => Unk_20 = (Unk_20 & ~(1u << 14)) | (value ? 1u << 14 : 0); }
+        public bool IsUnk { get => ((Unk_20 >> 15) & 1) == 1; set => Unk_20 = (Unk_20 & ~(1u << 15)) | (value ? 1u << 15 : 0); }
 
-        // unused
-        public int _22 { get => BitConverter.ToUInt16(Data, 0x22); set => BitConverter.GetBytes((ushort)value).CopyTo(Data, 0x22); }
+        // unused - camera
+        public ushort Camera1 { get => BitConverter.ToUInt16(Data, 0x22); set => BitConverter.GetBytes(value).CopyTo(Data, 0x22); }
 
-        public int _24 { get => BitConverter.ToUInt16(Data, 0x24); set => BitConverter.GetBytes((ushort)value).CopyTo(Data, 0x24); }
-        public int _26 { get => BitConverter.ToUInt16(Data, 0x26); set => BitConverter.GetBytes((ushort)value).CopyTo(Data, 0x26); }
+        public ushort Camera2 { get => BitConverter.ToUInt16(Data, 0x24); set => BitConverter.GetBytes(value).CopyTo(Data, 0x24); }
+        public uint CameraFlags { get => BitConverter.ToUInt32(Data, 0x26); set => BitConverter.GetBytes((ushort)value).CopyTo(Data, 0x26); }
 
-        public int _28 { get => BitConverter.ToUInt16(Data, 0x28); set => BitConverter.GetBytes((ushort)value).CopyTo(Data, 0x28); }
+        private short X { get => BitConverter.ToInt16(Data, 0x2C); set => BitConverter.GetBytes(value).CopyTo(Data, 0x2C); }
+        public short Z { get => BitConverter.ToInt16(Data, 0x2E); set => BitConverter.GetBytes(value).CopyTo(Data, 0x2E); }
+        private short Y { get => BitConverter.ToInt16(Data, 0x30); set => BitConverter.GetBytes(value).CopyTo(Data, 0x30); }
+        private short X2 { get => BitConverter.ToInt16(Data, 0x32); set => BitConverter.GetBytes(value).CopyTo(Data, 0x32); }
+        public short Z2 { get => BitConverter.ToInt16(Data, 0x34); set => BitConverter.GetBytes(value).CopyTo(Data, 0x34); }
+        private short Y2 { get => BitConverter.ToInt16(Data, 0x36); set => BitConverter.GetBytes(value).CopyTo(Data, 0x36); }
 
-        private int X { get => BitConverter.ToInt16(Data, 0x2C); set => BitConverter.GetBytes((short)value).CopyTo(Data, 0x2C); }
-        public int Z { get => BitConverter.ToInt16(Data, 0x2E); set => BitConverter.GetBytes((short)value).CopyTo(Data, 0x2E); }
-        private int Y { get => BitConverter.ToInt16(Data, 0x30); set => BitConverter.GetBytes((short)value).CopyTo(Data, 0x30); }
-        private int X2 { get => BitConverter.ToInt16(Data, 0x32); set => BitConverter.GetBytes((short)value).CopyTo(Data, 0x32); }
-        public int Z2 { get => BitConverter.ToInt16(Data, 0x34); set => BitConverter.GetBytes((short)value).CopyTo(Data, 0x34); }
-        private int Y2 { get => BitConverter.ToInt16(Data, 0x36); set => BitConverter.GetBytes((short)value).CopyTo(Data, 0x36); }
-
-        public float PX { get => (float)X / 18; set => X = (int)(18 * value); }
-        public float PY { get => (float)Y / 18; set => Y = (int)(18 * value); }
-        public float PX2 { get => (float)X2 / 18; set => X2 = (int)(18 * value); }
-        public float PY2 { get => (float)Y2 / 18; set => Y2 = (int)(18 * value); }
+        public float PX { get => (float)X / 18; set => X = (short)(18 * value); }
+        public float PY { get => (float)Y / 18; set => Y = (short)(18 * value); }
+        public float PX2 { get => (float)X2 / 18; set => X2 = (short)(18 * value); }
+        public float PY2 { get => (float)Y2 / 18; set => Y2 = (short)(18 * value); }
 
         public ZoneData(byte[] data)
         {
@@ -452,47 +436,45 @@ namespace pk3DS
             {
                 Data = data;
 
-                using (BinaryReader br = new BinaryReader(new MemoryStream(data)))
+                using BinaryReader br = new BinaryReader(new MemoryStream(data));
+                // Load Header
+                Length = br.ReadInt32();
+                Furniture = new EntityFurniture[FurnitureCount = br.ReadByte()];
+                NPCs = new EntityNPC[NPCCount = br.ReadByte()];
+                Warps = new EntityWarp[WarpCount = br.ReadByte()];
+                Triggers1 = new EntityTrigger1[TriggerCount = br.ReadByte()];
+                Triggers2 = new EntityTrigger2[UnknownCount = br.ReadInt32()]; // not sure if there's other types or if the remaining 3 bytes are padding.
+
+                // Load Entitites
+                for (int i = 0; i < FurnitureCount; i++)
                 {
-                    // Load Header
-                    Length = br.ReadInt32();
-                    Furniture = new EntityFurniture[FurnitureCount = br.ReadByte()];
-                    NPCs = new EntityNPC[NPCCount = br.ReadByte()];
-                    Warps = new EntityWarp[WarpCount = br.ReadByte()];
-                    Triggers1 = new EntityTrigger1[TriggerCount = br.ReadByte()];
-                    Triggers2 = new EntityTrigger2[UnknownCount = br.ReadInt32()]; // not sure if there's other types or if the remaining 3 bytes are padding.
-
-                    // Load Entitites
-                    for (int i = 0; i < FurnitureCount; i++)
-                    {
-                        Furniture[i] = new EntityFurniture(br.ReadBytes(EntityFurniture.Size));
-                    }
-
-                    for (int i = 0; i < NPCCount; i++)
-                    {
-                        NPCs[i] = new EntityNPC(br.ReadBytes(EntityNPC.Size));
-                    }
-
-                    for (int i = 0; i < WarpCount; i++)
-                    {
-                        Warps[i] = new EntityWarp(br.ReadBytes(EntityWarp.Size));
-                    }
-
-                    for (int i = 0; i < TriggerCount; i++)
-                    {
-                        Triggers1[i] = new EntityTrigger1(br.ReadBytes(EntityTrigger1.Size));
-                    }
-
-                    for (int i = 0; i < UnknownCount; i++)
-                    {
-                        Triggers2[i] = new EntityTrigger2(br.ReadBytes(EntityTrigger2.Size));
-                    }
-
-                    // Load Script Data
-                    int len = br.ReadInt32();
-                    br.BaseStream.Position -= 4;
-                    Script = new Script(br.ReadBytes(len));
+                    Furniture[i] = new EntityFurniture(br.ReadBytes(EntityFurniture.Size));
                 }
+
+                for (int i = 0; i < NPCCount; i++)
+                {
+                    NPCs[i] = new EntityNPC(br.ReadBytes(EntityNPC.Size));
+                }
+
+                for (int i = 0; i < WarpCount; i++)
+                {
+                    Warps[i] = new EntityWarp(br.ReadBytes(EntityWarp.Size));
+                }
+
+                for (int i = 0; i < TriggerCount; i++)
+                {
+                    Triggers1[i] = new EntityTrigger1(br.ReadBytes(EntityTrigger1.Size));
+                }
+
+                for (int i = 0; i < UnknownCount; i++)
+                {
+                    Triggers2[i] = new EntityTrigger2(br.ReadBytes(EntityTrigger2.Size));
+                }
+
+                // Load Script Data
+                int len = br.ReadInt32();
+                br.BaseStream.Position -= 4;
+                Script = new Script(br.ReadBytes(len));
             }
 
             public byte[] Write()
@@ -570,7 +552,7 @@ namespace pk3DS
 
                 public byte[] Raw;
                 public byte[] OriginalData;
-                internal static readonly byte Size = 0x14;
+                internal const byte Size = 0x14;
 
                 public EntityFurniture(byte[] data = null)
                 {
@@ -629,7 +611,7 @@ namespace pk3DS
 
                 public byte[] Raw;
                 public byte[] OriginalData;
-                internal static readonly byte Size = 0x30;
+                internal const byte Size = 0x30;
 
                 public EntityNPC(byte[] data = null)
                 {
@@ -650,32 +632,36 @@ namespace pk3DS
                 public int DestinationTileIndex { get => BitConverter.ToUInt16(Raw, 0x02); set => BitConverter.GetBytes((ushort)value).CopyTo(Raw, 0x02); }
 
                 // Not sure if these are widths or face direction
-                public int WX { get => Raw[0x04]; set => Raw[0x4] = (byte)value; }
-                public int WY { get => Raw[0x05]; set => Raw[0x5] = (byte)value; }
+                public byte FaceDirection { get => Raw[0x04]; set => Raw[0x4] = value; }
+                public byte SceneTransitionEffect { get => Raw[0x05]; set => Raw[0x5] = value; }
 
                 // Either 0 or 1, only in X/Y
-                public int U06 { get => BitConverter.ToUInt16(Raw, 0x06); set => BitConverter.GetBytes((ushort)value).CopyTo(Raw, 0x06); }
+                // 0: use x,z,y
+                // 1: use x,y,{unused}
+                public ushort CoordinateType { get => BitConverter.ToUInt16(Raw, 0x06); set => BitConverter.GetBytes(value).CopyTo(Raw, 0x06); }
                 // Coordinates have some upper-bit usage it seems...
-                public int X { get => BitConverter.ToUInt16(Raw, 0x08); set => BitConverter.GetBytes((ushort)value).CopyTo(Raw, 0x08); }
-                public int Z { get => BitConverter.ToInt16(Raw, 0x0A); set => BitConverter.GetBytes((short)value).CopyTo(Raw, 0x0A); }
-                public int Y { get => BitConverter.ToUInt16(Raw, 0x0C); set => BitConverter.GetBytes((ushort)value).CopyTo(Raw, 0x0C); }
+                public short X { get => BitConverter.ToInt16(Raw, 0x08); set => BitConverter.GetBytes(value).CopyTo(Raw, 0x08); }
+                public short Z { get => BitConverter.ToInt16(Raw, 0x0A); set => BitConverter.GetBytes(value).CopyTo(Raw, 0x0A); }
+                public short Y { get => BitConverter.ToInt16(Raw, 0x0C); set => BitConverter.GetBytes(value).CopyTo(Raw, 0x0C); }
 
                 public decimal PX => (decimal)X / 18;
                 public decimal PY => (decimal)Y / 18;
 
                 // Stretches RIGHT
-                public int Width { get => BitConverter.ToInt16(Raw, 0x0E); set => BitConverter.GetBytes((short)value).CopyTo(Raw, 0x0E); }
+                public short Width { get => BitConverter.ToInt16(Raw, 0x0E); set => BitConverter.GetBytes(value).CopyTo(Raw, 0x0E); }
                 // Stretches DOWN
-                public int Height { get => BitConverter.ToInt16(Raw, 0x10); set => BitConverter.GetBytes((short)value).CopyTo(Raw, 0x10); }
-                // Not sure.
-                public int U12 { get => BitConverter.ToInt16(Raw, 0x12); set => BitConverter.GetBytes((short)value).CopyTo(Raw, 0x12); }
+                public short Height { get => BitConverter.ToInt16(Raw, 0x10); set => BitConverter.GetBytes(value).CopyTo(Raw, 0x10); }
+                // 0-bidirectional
+                // 1-send only
+                // 2-receive only
+                public ushort Directionality { get => BitConverter.ToUInt16(Raw, 0x12); set => BitConverter.GetBytes((short)value).CopyTo(Raw, 0x12); }
 
                 // 0x14-0x15 Unused
                 // 0x16-0x17 Unused
 
                 public byte[] Raw;
                 public byte[] OriginalData;
-                internal static readonly byte Size = 0x18;
+                internal const byte Size = 0x18;
 
                 public EntityWarp(byte[] data = null)
                 {
@@ -713,7 +699,7 @@ namespace pk3DS
 
                 public byte[] Raw;
                 public byte[] OriginalData;
-                internal static readonly byte Size = 0x18;
+                internal const byte Size = 0x18;
 
                 public EntityTrigger1(byte[] data = null)
                 {
@@ -751,7 +737,7 @@ namespace pk3DS
 
                 public byte[] Raw;
                 public byte[] OriginalData;
-                internal static readonly byte Size = 0x18;
+                internal const byte Size = 0x18;
 
                 public EntityTrigger2(byte[] data = null)
                 {
@@ -791,14 +777,12 @@ namespace pk3DS
             {
                 Data = data;
 
-                using (BinaryReader br = new BinaryReader(new MemoryStream(data)))
+                using BinaryReader br = new BinaryReader(new MemoryStream(data));
+                Header = br.ReadBytes(0x10);
+                Encounters = new EncounterSet[(int)(br.BaseStream.Length - br.BaseStream.Position)/4];
+                for (int i = 0; i < Encounters.Length; i++)
                 {
-                    Header = br.ReadBytes(0x10);
-                    Encounters = new EncounterSet[(int)(br.BaseStream.Length - br.BaseStream.Position)/4];
-                    for (int i = 0; i < Encounters.Length; i++)
-                    {
-                        Encounters[i] = new EncounterSet(br.ReadBytes(4));
-                    }
+                    Encounters[i] = new EncounterSet(br.ReadBytes(4));
                 }
             }
 
@@ -816,26 +800,22 @@ namespace pk3DS
 
                 public EncounterSet(byte[] data)
                 {
-                    using (BinaryReader br = new BinaryReader(new MemoryStream(data)))
-                    {
-                        ushort SpecForm = br.ReadUInt16();
-                        Species = SpecForm & 0x7FF;
-                        Form = SpecForm >> 11;
-                        LevelMin = br.ReadByte();
-                        LevelMax = br.ReadByte();
-                    }
+                    using BinaryReader br = new BinaryReader(new MemoryStream(data));
+                    ushort SpecForm = br.ReadUInt16();
+                    Species = SpecForm & 0x7FF;
+                    Form = SpecForm >> 11;
+                    LevelMin = br.ReadByte();
+                    LevelMax = br.ReadByte();
                 }
 
                 public byte[] Write()
                 {
-                    using (MemoryStream ms = new MemoryStream())
-                    using (BinaryWriter bw = new BinaryWriter(ms))
-                    {
-                        bw.Write((ushort)(Species | (Form << 11)));
-                        bw.Write(LevelMin);
-                        bw.Write(LevelMax);
-                        return ms.ToArray();
-                    }
+                    using MemoryStream ms = new MemoryStream();
+                    using BinaryWriter bw = new BinaryWriter(ms);
+                    bw.Write((ushort)(Species | (Form << 11)));
+                    bw.Write(LevelMin);
+                    bw.Write(LevelMax);
+                    return ms.ToArray();
                 }
             }
         }
